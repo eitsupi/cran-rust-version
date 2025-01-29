@@ -1,0 +1,13 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:bullseye",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"denoland.vscode-deno"
+			]
+		}
+	},
+	"postAttachCommand": {
+		"install-deno": "curl -fsSL https://deno.land/install.sh | sh -s -- --yes"
+	}
+}

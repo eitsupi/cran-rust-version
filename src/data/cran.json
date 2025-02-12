@@ -1,0 +1,3 @@
+{
+  "packages": ["hellorust", "gifski", "string2path", "prqlr"]
+}

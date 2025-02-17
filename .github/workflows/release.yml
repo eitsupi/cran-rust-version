@@ -1,0 +1,37 @@
+name: Create new release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "output/versions.json"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prep release
+        id: prep
+        run: |
+          echo "tag=$(date -u +%Y-%m-%d)" >>"$GITHUB_OUTPUT"
+
+          # Install DuckDB CLI
+          curl https://install.duckdb.org | sh
+          ~/.duckdb/cli/latest/duckdb -markdown -c 'from read_json("output/versions.json")' >"${{ runner.temp }}/body.md"
+      - name: Create release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prep.outputs.tag }}
+          body_path: ${{ runner.temp }}/body.md
+          files: |
+            output/versions.json

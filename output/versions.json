@@ -16,10 +16,6 @@
         "rustc": "1.84.0"
     },
     {
-        "flavor": "r-devel-linux-x86_64-debian-gcc",
-        "rustc": "1.84.0"
-    },
-    {
         "flavor": "r-patched-linux-x86_64",
         "rustc": "1.84.0"
     },
@@ -58,5 +54,9 @@
     {
         "flavor": "r-oldrel-macos-x86_64",
         "rustc": "1.84.1"
+    },
+    {
+        "flavor": "r-devel-linux-x86_64-debian-gcc",
+        "rustc": "1.85.0"
     }
 ]

@@ -27,7 +27,7 @@ export function convertToInstallLogs(checkLinks: string[]): string[] {
 }
 
 export function extractSemver(ver: string): SemVer {
-    const match = ver.match(/\d+\.\d+(\.\d+)?/) ?? [""];
+    const match = ver.match(/\d+\.\d+(\.\d+)?/) ?? ["0.0.0"];
     return parse(match[0]);
 }
 

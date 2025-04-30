@@ -17,7 +17,8 @@ async function main() {
     const versions: VersionInfo[] = [];
     for (const log of installLogs) {
         const versionInfo = await fetchVersionInfo(log);
-        if (versionInfo) {
+        // 0.0.0 means the version is not found
+        if (versionInfo && format(versionInfo.rustc) !== "0.0.0") {
             versions.push(versionInfo);
         }
     }

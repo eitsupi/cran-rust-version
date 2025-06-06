@@ -50,5 +50,9 @@
     {
         "flavor": "r-devel-linux-x86_64-fedora-gcc",
         "rustc": "1.86.0"
+    },
+    {
+        "flavor": "",
+        "rustc": "1.86.0"
     }
 ]

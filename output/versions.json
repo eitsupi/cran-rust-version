@@ -44,11 +44,15 @@
         "rustc": "1.85.0"
     },
     {
-        "flavor": "r-devel-linux-x86_64-fedora-clang",
+        "flavor": "M1mac",
         "rustc": "1.86.0"
     },
     {
+        "flavor": "r-devel-linux-x86_64-fedora-clang",
+        "rustc": "1.87.0"
+    },
+    {
         "flavor": "r-devel-linux-x86_64-fedora-gcc",
-        "rustc": "1.86.0"
+        "rustc": "1.87.0"
     }
 ]

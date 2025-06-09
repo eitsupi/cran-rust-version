@@ -35,7 +35,7 @@ export async function fetchVersionInfo(
     logUrl: string,
 ): Promise<VersionInfo | null> {
     console.log(`Extracting Rust version from ${logUrl}`);
-    const flavor = logUrl.match(/(?<=\/)r-[^.\/]+/)?.[0] ?? "";
+    const flavor = logUrl.match(/(?<=\/)r-[^.\/]+/)?.[0] ?? logUrl.match(/(?<=\/pub\/bdr\/)[^\/]+(?=\/[^\/]+\.log$)/)?.[0] ?? "";
     let response;
     try {
         response = await axios.get(logUrl);

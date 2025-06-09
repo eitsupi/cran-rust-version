@@ -18,7 +18,13 @@ async function main() {
     for (const log of installLogs) {
         const versionInfo = await fetchVersionInfo(log);
         // 0.0.0 means the version is not found
-        if (versionInfo && format(versionInfo.rustc) !== "0.0.0") {
+        // "" means the flavor is additional check
+        if (
+            versionInfo &&
+            format(versionInfo.rustc) !== "0.0.0" &&
+            versionInfo.flavor &&
+            versionInfo.flavor !== ""
+        ) {
             versions.push(versionInfo);
         }
     }

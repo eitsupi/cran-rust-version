@@ -32,16 +32,16 @@
         "rustc": "1.85.0"
     },
     {
-        "flavor": "r-devel-linux-x86_64-debian-gcc",
-        "rustc": "1.85.0"
-    },
-    {
         "flavor": "r-patched-linux-x86_64",
         "rustc": "1.85.0"
     },
     {
         "flavor": "r-release-linux-x86_64",
         "rustc": "1.85.0"
+    },
+    {
+        "flavor": "r-devel-linux-x86_64-debian-gcc",
+        "rustc": "1.86.0"
     },
     {
         "flavor": "r-devel-linux-x86_64-fedora-clang",

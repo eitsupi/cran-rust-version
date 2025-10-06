@@ -8,6 +8,7 @@
 		}
 	},
 	"postCreateCommand": {
-		"install-deno": "curl -fsSL https://deno.land/install.sh | sh -s -- --yes"
+		"install-deno": "curl -fsSL https://deno.land/install.sh | sh -s -- --yes",
+		"install-duckdb": "curl https://install.duckdb.org | sh"
 	}
 }

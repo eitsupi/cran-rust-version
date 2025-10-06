@@ -26,7 +26,7 @@ jobs:
 
           # Install DuckDB CLI
           curl https://install.duckdb.org | sh
-          ~/.duckdb/cli/latest/duckdb -markdown -c 'from read_json("output/versions.json")' >"${{ runner.temp }}/body.md"
+          ~/.duckdb/cli/latest/duckdb -markdown output/versions.json -c 'from file' >"${{ runner.temp }}/body.md"
       - name: Create release
         id: release
         uses: softprops/action-gh-release@v2

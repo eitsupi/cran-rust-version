@@ -26,18 +26,22 @@ export async function fetchWithRetry(
   options: FetchOptions = {},
   { retries = 2, timeoutMs = 10000, backoffMs = 500 }: RetryOptions = {},
 ): Promise<Response> {
+  // retries: number of additional attempts after the first try.
+  const maxAttempts = retries + 1;
   let attempt = 0;
   let lastErr: unknown = null;
-  while (attempt <= retries) {
+  while (attempt < maxAttempts) {
     try {
       const resp = await fetchWithTimeout(input, options, timeoutMs);
       return resp;
     } catch (e) {
       lastErr = e;
-      // If aborted due to timeout or network error, wait and retry.
-      const waitMs = backoffMs * (attempt + 1);
-      await new Promise((res) => setTimeout(res, waitMs));
-      attempt++;
+      attempt += 1;
+      // If there are more attempts remaining, wait with backoff before retrying.
+      if (attempt < maxAttempts) {
+        const waitMs = backoffMs * attempt;
+        await new Promise((res) => setTimeout(res, waitMs));
+      }
     }
   }
   throw lastErr;

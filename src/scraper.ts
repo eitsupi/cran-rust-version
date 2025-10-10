@@ -42,8 +42,10 @@ export async function fetchVersionInfo(
     let res;
     try {
         res = await fetch(logUrl);
-    } catch (_e) {
-        console.error(`Error: ${logUrl} is not found.`);
+    } catch (e) {
+        // fetch can fail for many reasons (network, DNS, CORS, etc.).
+        // Log the actual error to aid debugging instead of assuming "not found".
+        console.error(`Error fetching ${logUrl}:`, e);
         return null;
     }
     if (!res.ok) {

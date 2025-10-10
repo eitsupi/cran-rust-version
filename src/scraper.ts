@@ -1,11 +1,15 @@
-import { axios, DOMParser, Element, parse, SemVer } from "./deps.ts";
+import { DOMParser, Element, parse, SemVer } from "./deps.ts";
+import { fetchWithRetry } from "./http.ts";
 import { VersionInfo } from "./types/index.ts";
 
 export async function fetchCheckLinks(packageName: string): Promise<string[]> {
     const checkLinksUrl =
         `https://cran.r-project.org/web/checks/check_results_${packageName}.html`;
-    const response = await axios.get(checkLinksUrl);
-    const html = response.data;
+    const res = await fetchWithRetry(checkLinksUrl);
+    if (!res.ok) {
+        throw new Error(`Failed to fetch ${checkLinksUrl}: ${res.status} ${res.statusText}`);
+    }
+    const html = await res.text();
     const doc = new DOMParser().parseFromString(html, "text/html");
     const container = doc?.querySelector(".container");
     const links = container?.querySelectorAll("a") ?? [];
@@ -36,14 +40,21 @@ export async function fetchVersionInfo(
 ): Promise<VersionInfo | null> {
     console.log(`Extracting Rust version from ${logUrl}`);
     const flavor = logUrl.match(/(?<=\/)r-[^.\/]+/)?.[0] ?? logUrl.match(/(?<=\/pub\/bdr\/)[^\/]+(?=\/[^\/]+\.log$)/)?.[0] ?? "";
-    let response;
+    let res;
     try {
-        response = await axios.get(logUrl);
-    } catch (_e) {
-        console.error(`Error: ${logUrl} is not found.`);
+        res = await fetchWithRetry(logUrl);
+    } catch (e) {
+        // fetch can fail for many reasons (network, DNS, CORS, etc.).
+        // Log the actual error to aid debugging instead of assuming "not found".
+        console.error(`Error fetching ${logUrl}:`, e);
         return null;
     }
-    const lines = response.data.split("\n");
+    if (!res.ok) {
+        console.error(`Error: ${logUrl} returned ${res.status} ${res.statusText}`);
+        return null;
+    }
+    const body = await res.text();
+    const lines = body.split("\n");
     const rustVersion = extractSemver(
         lines.find((line: string) => line.match("rustc [0-9]")) ?? "",
     );

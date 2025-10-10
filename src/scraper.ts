@@ -1,10 +1,11 @@
 import { DOMParser, Element, parse, SemVer } from "./deps.ts";
+import { fetchWithRetry } from "./http.ts";
 import { VersionInfo } from "./types/index.ts";
 
 export async function fetchCheckLinks(packageName: string): Promise<string[]> {
     const checkLinksUrl =
         `https://cran.r-project.org/web/checks/check_results_${packageName}.html`;
-    const res = await fetch(checkLinksUrl);
+    const res = await fetchWithRetry(checkLinksUrl);
     if (!res.ok) {
         throw new Error(`Failed to fetch ${checkLinksUrl}: ${res.status} ${res.statusText}`);
     }
@@ -41,7 +42,7 @@ export async function fetchVersionInfo(
     const flavor = logUrl.match(/(?<=\/)r-[^.\/]+/)?.[0] ?? logUrl.match(/(?<=\/pub\/bdr\/)[^\/]+(?=\/[^\/]+\.log$)/)?.[0] ?? "";
     let res;
     try {
-        res = await fetch(logUrl);
+        res = await fetchWithRetry(logUrl);
     } catch (e) {
         // fetch can fail for many reasons (network, DNS, CORS, etc.).
         // Log the actual error to aid debugging instead of assuming "not found".

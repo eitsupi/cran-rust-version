@@ -36,15 +36,15 @@
         "rustc": "1.87.0"
     },
     {
-        "flavor": "r-patched-linux-x86_64",
-        "rustc": "1.87.0"
-    },
-    {
         "flavor": "r-devel-linux-x86_64-debian-clang",
         "rustc": "1.88.0"
     },
     {
         "flavor": "r-devel-linux-x86_64-debian-gcc",
+        "rustc": "1.88.0"
+    },
+    {
+        "flavor": "r-patched-linux-x86_64",
         "rustc": "1.88.0"
     },
     {

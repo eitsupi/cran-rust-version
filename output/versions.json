@@ -50,9 +50,5 @@
     {
         "flavor": "r-release-linux-x86_64",
         "rustc": "1.88.0"
-    },
-    {
-        "flavor": "M1mac",
-        "rustc": "1.90.0"
     }
 ]

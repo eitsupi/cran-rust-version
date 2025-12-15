@@ -25,6 +25,6 @@ jobs:
       - run: |
           deno task start
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           title: "chore: update data"

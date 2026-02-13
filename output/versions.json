@@ -1,9 +1,5 @@
 [
     {
-        "flavor": "r-devel-macos-arm64",
-        "rustc": "1.84.1"
-    },
-    {
         "flavor": "r-release-macos-arm64",
         "rustc": "1.84.1"
     },
@@ -58,5 +54,9 @@
     {
         "flavor": "M1mac",
         "rustc": "1.92.0"
+    },
+    {
+        "flavor": "r-devel-macos-arm64",
+        "rustc": "1.93.0"
     }
 ]

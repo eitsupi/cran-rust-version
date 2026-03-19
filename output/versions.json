@@ -54,5 +54,9 @@
     {
         "flavor": "r-devel-linux-x86_64-fedora-gcc",
         "rustc": "1.93.1"
+    },
+    {
+        "flavor": "M1mac",
+        "rustc": "1.94.0"
     }
 ]

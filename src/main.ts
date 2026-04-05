@@ -62,6 +62,14 @@ function isCacheFreshWithoutValidator(observedAt: string): boolean {
     return Date.now() - observedTime <= NO_VALIDATOR_CACHE_TTL_MS;
 }
 
+function parseCachedRustc(rustc: string) {
+    try {
+        return parse(rustc);
+    } catch {
+        return null;
+    }
+}
+
 function installLogCacheKey(packageName: string, flavor: string): string {
     return `${packageName}::${flavor}`;
 }
@@ -161,6 +169,28 @@ async function main() {
             chunk.map(async (log) => {
                 const key = installLogCacheKey(log.packageName, log.flavor);
                 const cached = installLogCache.logs[key];
+
+                if (
+                    cached &&
+                    cached.url === log.url &&
+                    cached.lastModified === "" &&
+                    isCacheFreshWithoutValidator(cached.observedAt)
+                ) {
+                    const cachedRustc = parseCachedRustc(cached.rustc);
+                    if (cachedRustc && format(cachedRustc) !== "0.0.0") {
+                        return {
+                            key,
+                            version: {
+                                flavor: cached.flavor,
+                                rustc: cachedRustc,
+                            } as VersionInfo,
+                            cacheEntry: null,
+                            dropCache: false,
+                        };
+                    }
+                    return { key, version: null, cacheEntry: null, dropCache: false };
+                }
+
                 const validator = await fetchInstallTxtLastModified(log.url);
 
                 if (
@@ -169,8 +199,8 @@ async function main() {
                     validator !== "" &&
                     cached.lastModified === validator
                 ) {
-                    const cachedRustc = parse(cached.rustc);
-                    if (format(cachedRustc) !== "0.0.0") {
+                    const cachedRustc = parseCachedRustc(cached.rustc);
+                    if (cachedRustc && format(cachedRustc) !== "0.0.0") {
                         return {
                             key,
                             version: {
@@ -190,8 +220,8 @@ async function main() {
                     validator === "" &&
                     isCacheFreshWithoutValidator(cached.observedAt)
                 ) {
-                    const cachedRustc = parse(cached.rustc);
-                    if (format(cachedRustc) !== "0.0.0") {
+                    const cachedRustc = parseCachedRustc(cached.rustc);
+                    if (cachedRustc && format(cachedRustc) !== "0.0.0") {
                         return {
                             key,
                             version: {

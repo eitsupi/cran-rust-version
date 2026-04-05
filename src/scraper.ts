@@ -146,28 +146,40 @@ export async function fetchRUniversePackageInfo(
         return { status: "error", metadata: null };
     }
 
-    const json = await res.json() as Record<string, unknown>;
-    const version = typeof json.Version === "string" ? json.Version : "";
-    const needsCompilation = String(json.NeedsCompilation ?? "").toLowerCase() ===
-        "yes";
-    const systemRequirements = typeof json.SystemRequirements === "string"
-        ? json.SystemRequirements
-        : "";
-    const hasRextendrConfig = typeof json["Config/rextendr/version"] === "string";
+    let body = "";
+    try {
+        body = await res.text();
+        const json = JSON.parse(body) as Record<string, unknown>;
+        const version = typeof json.Version === "string" ? json.Version : "";
+        const needsCompilation = String(json.NeedsCompilation ?? "").toLowerCase() ===
+            "yes";
+        const systemRequirements = typeof json.SystemRequirements === "string"
+            ? json.SystemRequirements
+            : "";
+        const hasRextendrConfig = typeof json["Config/rextendr/version"] ===
+            "string";
 
-    if (!version) {
+        if (!version) {
+            return { status: "error", metadata: null };
+        }
+
+        return {
+            status: "ok",
+            metadata: {
+                version,
+                needsCompilation,
+                systemRequirements,
+                hasRextendrConfig,
+            },
+        };
+    } catch (e) {
+        console.error(
+            `Error parsing ${packageUrl} response (${res.status} ${res.statusText}):`,
+            e,
+            body.slice(0, 200),
+        );
         return { status: "error", metadata: null };
     }
-
-    return {
-        status: "ok",
-        metadata: {
-            version,
-            needsCompilation,
-            systemRequirements,
-            hasRextendrConfig,
-        },
-    };
 }
 
 export function isRustDependentFromMetadata(
@@ -190,7 +202,13 @@ export function extractSemver(ver: string): SemVer {
 export async function fetchInstallTxtLastModified(
     logUrl: string,
 ): Promise<string> {
-    const res = await fetchWithRetry(logUrl, { method: "HEAD" });
+    let res: Response;
+    try {
+        res = await fetchWithRetry(logUrl, { method: "HEAD" });
+    } catch (e) {
+        console.error(`Error fetching ${logUrl}:`, e);
+        return "";
+    }
     if (!res.ok) {
         return "";
     }

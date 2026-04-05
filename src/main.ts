@@ -230,7 +230,10 @@ async function main() {
                     return { key, version: null, cacheEntry: null, dropCache: false };
                 }
 
-                const validator = await fetchInstallTxtLastModified(log.url);
+                let validator = "";
+                if (cached && cached.url === log.url) {
+                    validator = await fetchInstallTxtLastModified(log.url);
+                }
 
                 if (
                     cached &&
@@ -274,7 +277,11 @@ async function main() {
                     return { key, version: null, cacheEntry: null, dropCache: false };
                 }
 
-                const versionInfo = await fetchVersionInfoFromInstallTxt(log);
+                const fetchedInstallTxt = await fetchVersionInfoFromInstallTxt(log);
+                const versionInfo = fetchedInstallTxt.versionInfo;
+                const effectiveValidator = validator !== ""
+                    ? validator
+                    : fetchedInstallTxt.validator;
                 if (versionInfo && format(versionInfo.rustc) !== "0.0.0") {
                     return {
                         key,
@@ -283,7 +290,7 @@ async function main() {
                             packageName: log.packageName,
                             flavor: log.flavor,
                             url: log.url,
-                            validator,
+                            validator: effectiveValidator,
                             rustc: format(versionInfo.rustc),
                             observedAt: new Date().toISOString(),
                         },

@@ -18,6 +18,11 @@ export interface InstallTxtLogSource {
     url: string;
 }
 
+export interface InstallTxtFetchResult {
+    versionInfo: VersionInfo | null;
+    validator: string;
+}
+
 export interface RUniversePackageInfo {
     version: string;
     needsCompilation: boolean;

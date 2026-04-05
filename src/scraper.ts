@@ -1,6 +1,7 @@
 import { parse, SemVer } from "./deps.ts";
 import { fetchWithRetry } from "./http.ts";
 import {
+    InstallTxtFetchResult,
     InstallTxtLogSource,
     RUniversePackageFetchResult,
     PackageIndexEntry,
@@ -220,25 +221,30 @@ export async function fetchInstallTxtLastModified(
 
 export async function fetchVersionInfoFromInstallTxt(
     source: InstallTxtLogSource,
-): Promise<VersionInfo | null> {
+): Promise<InstallTxtFetchResult> {
     console.log(`Extracting Rust version from ${source.url}`);
     let res: Response;
     try {
         res = await fetchWithRetry(source.url);
     } catch (e) {
         console.error(`Error fetching ${source.url}:`, e);
-        return null;
+        return { versionInfo: null, validator: "" };
     }
     if (!res.ok) {
         console.error(
             `Error: ${source.url} returned ${res.status} ${res.statusText}`,
         );
-        return null;
+        return { versionInfo: null, validator: "" };
     }
+    const lastModified = res.headers.get("last-modified") ?? "";
+    const validator = lastModified !== "" ? lastModified : (res.headers.get("etag") ?? "");
     const body = await res.text();
     const lines = body.split("\n");
     const rustVersion = extractSemver(
         lines.find((line: string) => line.match("rustc [0-9]")) ?? "",
     );
-    return { flavor: source.flavor, rustc: rustVersion };
+    return {
+        versionInfo: { flavor: source.flavor, rustc: rustVersion },
+        validator,
+    };
 }

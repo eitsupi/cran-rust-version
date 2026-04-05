@@ -18,6 +18,7 @@ import { compare, format, parse } from "./deps.ts";
 const PACKAGE_CHECK_PATH = "./output/cache/package-check.json";
 const INSTALL_LOG_CACHE_PATH = "./output/cache/install-logs.json";
 const RUNIVERSE_FETCH_CONCURRENCY = 20;
+const INSTALL_LOG_FETCH_CONCURRENCY = 20;
 
 function defaultPackageCheck(): PackageCheckFile {
     return {
@@ -93,17 +94,31 @@ async function main() {
         const chunk = entriesToRefresh.slice(i, i + RUNIVERSE_FETCH_CONCURRENCY);
         const refreshed = await Promise.all(
             chunk.map(async (entry) => {
-                const metadata = await fetchRUniversePackageInfo(entry.packageName);
-                const rustDependent = isRustDependentFromMetadata(metadata);
+                const fetched = await fetchRUniversePackageInfo(entry.packageName);
+                const rustDependent = isRustDependentFromMetadata(fetched.metadata);
                 const cacheEntry: PackageCheckEntry = {
                     version: entry.version,
                     checkedAt: new Date().toISOString(),
                 };
-                return { packageName: entry.packageName, cacheEntry, rustDependent };
+                return {
+                    packageName: entry.packageName,
+                    cacheEntry,
+                    rustDependent,
+                    status: fetched.status,
+                };
             }),
         );
 
         for (const item of refreshed) {
+            const previous = packageCheck.packages[item.packageName];
+            if (item.status === "error") {
+                // Keep the previous decision on transient API failures.
+                if (previous) {
+                    candidatePackages.add(item.packageName);
+                }
+                continue;
+            }
+
             if (item.rustDependent) {
                 packageCheck.packages[item.packageName] = item.cacheEntry;
                 candidatePackages.add(item.packageName);
@@ -123,40 +138,83 @@ async function main() {
 
     const versions: VersionInfo[] = [];
     const observedKeys = new Set<string>();
-    for (const log of installLogs) {
-        const key = installLogCacheKey(log.packageName, log.flavor);
-        observedKeys.add(key);
-        const cached = installLogCache.logs[key];
-        const lastModified = await fetchInstallTxtLastModified(log.url);
+    for (
+        let i = 0;
+        i < installLogs.length;
+        i += INSTALL_LOG_FETCH_CONCURRENCY
+    ) {
+        const chunk = installLogs.slice(i, i + INSTALL_LOG_FETCH_CONCURRENCY);
+        const results = await Promise.all(
+            chunk.map(async (log) => {
+                const key = installLogCacheKey(log.packageName, log.flavor);
+                const cached = installLogCache.logs[key];
+                const lastModified = await fetchInstallTxtLastModified(log.url);
 
-        if (
-            cached &&
-            cached.url === log.url &&
-            lastModified !== "" &&
-            cached.lastModified === lastModified
-        ) {
-            const cachedRustc = parse(cached.rustc);
-            if (format(cachedRustc) !== "0.0.0") {
-                versions.push({
-                    flavor: cached.flavor,
-                    rustc: cachedRustc,
-                });
+                if (
+                    cached &&
+                    cached.url === log.url &&
+                    lastModified !== "" &&
+                    cached.lastModified === lastModified
+                ) {
+                    const cachedRustc = parse(cached.rustc);
+                    if (format(cachedRustc) !== "0.0.0") {
+                        return {
+                            key,
+                            version: {
+                                flavor: cached.flavor,
+                                rustc: cachedRustc,
+                            } as VersionInfo,
+                            cacheEntry: null,
+                            dropCache: false,
+                        };
+                    }
+                    return { key, version: null, cacheEntry: null, dropCache: false };
+                }
+
+                const versionInfo = await fetchVersionInfoFromInstallTxt(log);
+                if (versionInfo && format(versionInfo.rustc) !== "0.0.0") {
+                    if (lastModified === "") {
+                        return {
+                            key,
+                            version: versionInfo,
+                            cacheEntry: null,
+                            dropCache: true,
+                        };
+                    }
+                    return {
+                        key,
+                        version: versionInfo,
+                        cacheEntry: {
+                            packageName: log.packageName,
+                            flavor: log.flavor,
+                            url: log.url,
+                            lastModified,
+                            rustc: format(versionInfo.rustc),
+                            observedAt: new Date().toISOString(),
+                        },
+                        dropCache: false,
+                    };
+                }
+
+                return {
+                    key,
+                    version: null,
+                    cacheEntry: null,
+                    dropCache: true,
+                };
+            }),
+        );
+
+        for (const result of results) {
+            observedKeys.add(result.key);
+            if (result.version) {
+                versions.push(result.version);
             }
-            continue;
-        }
-
-        const versionInfo = await fetchVersionInfoFromInstallTxt(log);
-        // 0.0.0 means the version is not found
-        if (versionInfo && format(versionInfo.rustc) !== "0.0.0") {
-            versions.push(versionInfo);
-            installLogCache.logs[key] = {
-                packageName: log.packageName,
-                flavor: log.flavor,
-                url: log.url,
-                lastModified,
-                rustc: format(versionInfo.rustc),
-                observedAt: new Date().toISOString(),
-            };
+            if (result.cacheEntry) {
+                installLogCache.logs[result.key] = result.cacheEntry;
+            } else if (result.dropCache) {
+                delete installLogCache.logs[result.key];
+            }
         }
     }
 
@@ -168,7 +226,7 @@ async function main() {
 
     const uniqueVersions = latestVersions(versions)
         .sort((a, b) => {
-            if (a.rustc === b.rustc) {
+            if (compare(a.rustc, b.rustc) === 0) {
                 return a.flavor.localeCompare(b.flavor);
             }
             return compare(a.rustc, b.rustc);

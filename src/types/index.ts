@@ -24,6 +24,11 @@ export interface RUniversePackageInfo {
     hasRextendrConfig: boolean;
 }
 
+export interface RUniversePackageFetchResult {
+    status: "ok" | "not_found" | "error";
+    metadata: RUniversePackageInfo | null;
+}
+
 export interface PackageCheckEntry {
     version: string;
     checkedAt: string;

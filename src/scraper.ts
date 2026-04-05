@@ -2,6 +2,7 @@ import { parse, SemVer } from "./deps.ts";
 import { fetchWithRetry } from "./http.ts";
 import {
     InstallTxtLogSource,
+    RUniversePackageFetchResult,
     PackageIndexEntry,
     RUniversePackageInfo,
     VersionInfo,
@@ -125,16 +126,24 @@ export async function fetchInstallTxtLinksForPackages(
 
 export async function fetchRUniversePackageInfo(
     packageName: string,
-): Promise<RUniversePackageInfo | null> {
+): Promise<RUniversePackageFetchResult> {
     const packageUrl = `${RUNIVERSE_CRAN_PACKAGE_API_BASE}/${packageName}`;
-    const res = await fetchWithRetry(packageUrl);
+    let res: Response;
+    try {
+        res = await fetchWithRetry(packageUrl);
+    } catch (e) {
+        console.error(`Error fetching ${packageUrl}:`, e);
+        return { status: "error", metadata: null };
+    }
+
     if (!res.ok) {
-        if (res.status !== 404) {
-            console.error(
-                `Error: ${packageUrl} returned ${res.status} ${res.statusText}`,
-            );
+        if (res.status === 404) {
+            return { status: "not_found", metadata: null };
         }
-        return null;
+        console.error(
+            `Error: ${packageUrl} returned ${res.status} ${res.statusText}`,
+        );
+        return { status: "error", metadata: null };
     }
 
     const json = await res.json() as Record<string, unknown>;
@@ -147,14 +156,17 @@ export async function fetchRUniversePackageInfo(
     const hasRextendrConfig = typeof json["Config/rextendr/version"] === "string";
 
     if (!version) {
-        return null;
+        return { status: "error", metadata: null };
     }
 
     return {
-        version,
-        needsCompilation,
-        systemRequirements,
-        hasRextendrConfig,
+        status: "ok",
+        metadata: {
+            version,
+            needsCompilation,
+            systemRequirements,
+            hasRextendrConfig,
+        },
     };
 }
 
@@ -182,7 +194,11 @@ export async function fetchInstallTxtLastModified(
     if (!res.ok) {
         return "";
     }
-    return res.headers.get("last-modified") ?? "";
+    const lastModified = res.headers.get("last-modified") ?? "";
+    if (lastModified !== "") {
+        return lastModified;
+    }
+    return res.headers.get("etag") ?? "";
 }
 
 export async function fetchVersionInfoFromInstallTxt(

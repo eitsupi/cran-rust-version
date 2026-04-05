@@ -19,6 +19,7 @@ const PACKAGE_CHECK_PATH = "./output/cache/package-check.json";
 const INSTALL_LOG_CACHE_PATH = "./output/cache/install-logs.json";
 const RUNIVERSE_FETCH_CONCURRENCY = 20;
 const INSTALL_LOG_FETCH_CONCURRENCY = 20;
+const NO_VALIDATOR_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function defaultPackageCheck(): PackageCheckFile {
     return {
@@ -45,8 +46,20 @@ async function loadJsonOrDefault<T>(
         if (e instanceof Deno.errors.NotFound) {
             return fallback;
         }
+        if (e instanceof SyntaxError) {
+            console.warn(`Invalid JSON at ${path}, falling back to defaults.`);
+            return fallback;
+        }
         throw e;
     }
+}
+
+function isCacheFreshWithoutValidator(observedAt: string): boolean {
+    const observedTime = Date.parse(observedAt);
+    if (Number.isNaN(observedTime)) {
+        return false;
+    }
+    return Date.now() - observedTime <= NO_VALIDATOR_CACHE_TTL_MS;
 }
 
 function installLogCacheKey(packageName: string, flavor: string): string {
@@ -111,7 +124,7 @@ async function main() {
 
         for (const item of refreshed) {
             const previous = packageCheck.packages[item.packageName];
-            if (item.status === "error") {
+            if (item.status === "error" || item.status === "not_found") {
                 // Keep the previous decision on transient API failures.
                 if (previous) {
                     candidatePackages.add(item.packageName);
@@ -148,13 +161,34 @@ async function main() {
             chunk.map(async (log) => {
                 const key = installLogCacheKey(log.packageName, log.flavor);
                 const cached = installLogCache.logs[key];
-                const lastModified = await fetchInstallTxtLastModified(log.url);
+                const validator = await fetchInstallTxtLastModified(log.url);
 
                 if (
                     cached &&
                     cached.url === log.url &&
-                    lastModified !== "" &&
-                    cached.lastModified === lastModified
+                    validator !== "" &&
+                    cached.lastModified === validator
+                ) {
+                    const cachedRustc = parse(cached.rustc);
+                    if (format(cachedRustc) !== "0.0.0") {
+                        return {
+                            key,
+                            version: {
+                                flavor: cached.flavor,
+                                rustc: cachedRustc,
+                            } as VersionInfo,
+                            cacheEntry: null,
+                            dropCache: false,
+                        };
+                    }
+                    return { key, version: null, cacheEntry: null, dropCache: false };
+                }
+
+                if (
+                    cached &&
+                    cached.url === log.url &&
+                    validator === "" &&
+                    isCacheFreshWithoutValidator(cached.observedAt)
                 ) {
                     const cachedRustc = parse(cached.rustc);
                     if (format(cachedRustc) !== "0.0.0") {
@@ -173,14 +207,6 @@ async function main() {
 
                 const versionInfo = await fetchVersionInfoFromInstallTxt(log);
                 if (versionInfo && format(versionInfo.rustc) !== "0.0.0") {
-                    if (lastModified === "") {
-                        return {
-                            key,
-                            version: versionInfo,
-                            cacheEntry: null,
-                            dropCache: true,
-                        };
-                    }
                     return {
                         key,
                         version: versionInfo,
@@ -188,10 +214,19 @@ async function main() {
                             packageName: log.packageName,
                             flavor: log.flavor,
                             url: log.url,
-                            lastModified,
+                            lastModified: validator,
                             rustc: format(versionInfo.rustc),
                             observedAt: new Date().toISOString(),
                         },
+                        dropCache: false,
+                    };
+                }
+
+                if (cached && cached.url === log.url && validator === "") {
+                    return {
+                        key,
+                        version: null,
+                        cacheEntry: null,
                         dropCache: false,
                     };
                 }

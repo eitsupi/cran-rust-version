@@ -37,16 +37,7 @@ jobs:
         with:
           path: output/cache
           key: output-cache-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
-      - name: Check versions.json changes
-        id: versions_diff
-        run: |
-          if git diff --quiet -- output/versions.json; then
-            echo "changed=false" >>"$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >>"$GITHUB_OUTPUT"
-          fi
       - name: Create Pull Request
-        if: steps.versions_diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8
         with:
           title: "chore: update data"

@@ -259,6 +259,7 @@ async function main() {
                 if (
                     cached &&
                     cached.url === log.url &&
+                    cached.validator === "" &&
                     validator === "" &&
                     isCacheFreshWithoutValidator(cached.observedAt)
                 ) {

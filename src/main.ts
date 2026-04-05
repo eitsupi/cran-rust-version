@@ -283,6 +283,9 @@ async function main() {
                 const effectiveValidator = validator !== ""
                     ? validator
                     : fetchedInstallTxt.validator;
+                const nextValidator = effectiveValidator !== ""
+                    ? effectiveValidator
+                    : (cached?.url === log.url ? cached.validator : "");
                 if (versionInfo && format(versionInfo.rustc) !== "0.0.0") {
                     return {
                         key,
@@ -291,7 +294,7 @@ async function main() {
                             packageName: log.packageName,
                             flavor: log.flavor,
                             url: log.url,
-                            validator: effectiveValidator,
+                            validator: nextValidator,
                             rustc: format(versionInfo.rustc),
                             observedAt: new Date().toISOString(),
                         },

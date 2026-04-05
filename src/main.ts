@@ -326,6 +326,7 @@ async function main() {
         4,
     );
     const versionsJsonPath = "./output/versions.json";
+    await Deno.mkdir("./output", { recursive: true });
     await Deno.mkdir("./output/cache", { recursive: true });
     await Deno.writeTextFile(versionsJsonPath, versionsJson);
     packageCheck.updatedAt = new Date().toISOString();

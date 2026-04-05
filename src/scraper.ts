@@ -37,10 +37,8 @@ function parseDcfRecord(record: string): Record<string, string> {
     return fields;
 }
 
-async function gunzipToText(gzData: Uint8Array): Promise<string> {
-    const gzCopy = new Uint8Array(gzData.byteLength);
-    gzCopy.set(gzData);
-    const stream = new Blob([gzCopy]).stream().pipeThrough(
+async function gunzipToText(gzData: ArrayBuffer): Promise<string> {
+    const stream = new Blob([gzData]).stream().pipeThrough(
         new DecompressionStream("gzip"),
     );
     return await new Response(stream).text();
@@ -65,7 +63,7 @@ export async function fetchPackageIndex(): Promise<PackageIndexEntry[]> {
     if (!res.ok) {
         throw new Error(`Failed to fetch ${PACKAGES_URL}: ${res.status} ${res.statusText}`);
     }
-    const compressed = new Uint8Array(await res.arrayBuffer());
+    const compressed = await res.arrayBuffer();
     const dcfText = await gunzipToText(compressed);
     const records = splitDcfRecords(dcfText);
     const entries: PackageIndexEntry[] = [];

@@ -255,7 +255,7 @@ async function main() {
                     };
                 }
 
-                if (cached && cached.url === log.url && validator === "") {
+                if (cached && cached.url === log.url) {
                     return {
                         key,
                         version: null,

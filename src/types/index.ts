@@ -11,28 +11,27 @@ export interface PackageIndexEntry {
     needsCompilation: boolean;
 }
 
-export interface PackageDescription {
-    systemRequirements: string;
-    hasRextendrConfig: boolean;
-}
-
 export interface InstallTxtLogSource {
     packageName: string;
     flavor: string;
     url: string;
 }
 
-export interface PackageCacheEntry {
+export interface RUniversePackageInfo {
     version: string;
     needsCompilation: boolean;
-    isRustDependent: boolean;
     systemRequirements: string;
+    hasRextendrConfig: boolean;
+}
+
+export interface PackageCheckEntry {
+    version: string;
     checkedAt: string;
 }
 
-export interface PackageCacheFile {
+export interface PackageCheckFile {
     updatedAt: string;
-    packages: Record<string, PackageCacheEntry>;
+    packages: Record<string, PackageCheckEntry>;
 }
 
 export interface InstallLogCacheEntry {

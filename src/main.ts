@@ -1,25 +1,25 @@
 import {
     fetchInstallTxtLastModified,
     fetchInstallTxtLinksForPackages,
-    fetchPackageDescription,
     fetchPackageIndex,
+    fetchRUniversePackageInfo,
     fetchVersionInfoFromInstallTxt,
-    isRustDependent,
+    isRustDependentFromMetadata,
 } from "./scraper.ts";
 import {
     InstallLogCacheFile,
-    PackageCacheEntry,
-    PackageCacheFile,
+    PackageCheckEntry,
+    PackageCheckFile,
     VersionInfo,
 } from "./types/index.ts";
 import { latestVersions } from "./utils.ts";
 import { compare, format, parse } from "./deps.ts";
 
-const PACKAGE_CACHE_PATH = "./output/cache/packages.json";
+const PACKAGE_CHECK_PATH = "./output/cache/package-check.json";
 const INSTALL_LOG_CACHE_PATH = "./output/cache/install-logs.json";
-const DESCRIPTION_FETCH_CONCURRENCY = 20;
+const RUNIVERSE_FETCH_CONCURRENCY = 20;
 
-function defaultPackageCache(): PackageCacheFile {
+function defaultPackageCheck(): PackageCheckFile {
     return {
         updatedAt: new Date().toISOString(),
         packages: {},
@@ -53,9 +53,9 @@ function installLogCacheKey(packageName: string, flavor: string): string {
 }
 
 async function main() {
-    const packageCache = await loadJsonOrDefault(
-        PACKAGE_CACHE_PATH,
-        defaultPackageCache(),
+    const packageCheck = await loadJsonOrDefault(
+        PACKAGE_CHECK_PATH,
+        defaultPackageCheck(),
     );
     const installLogCache = await loadJsonOrDefault(
         INSTALL_LOG_CACHE_PATH,
@@ -63,34 +63,22 @@ async function main() {
     );
 
     const packageIndex = await fetchPackageIndex();
-    const packageIndexMap = new Map(
-        packageIndex.map((entry) => [entry.packageName, entry]),
+    const compilationPackageNames = new Set(
+        packageIndex
+            .filter((entry) => entry.needsCompilation)
+            .map((entry) => entry.packageName),
     );
 
-    const rustPackages = new Set<string>();
+    const candidatePackages = new Set<string>();
     const entriesToRefresh = [] as typeof packageIndex;
     for (const entry of packageIndex) {
-        const cached = packageCache.packages[entry.packageName];
-        if (
-            cached &&
-            cached.version === entry.version &&
-            cached.needsCompilation === entry.needsCompilation
-        ) {
-            if (cached.isRustDependent) {
-                rustPackages.add(entry.packageName);
-            }
+        const previous = packageCheck.packages[entry.packageName];
+        if (!entry.needsCompilation) {
             continue;
         }
 
-        if (!entry.needsCompilation) {
-            const nextCacheEntry: PackageCacheEntry = {
-                version: entry.version,
-                needsCompilation: false,
-                isRustDependent: false,
-                systemRequirements: "",
-                checkedAt: new Date().toISOString(),
-            };
-            packageCache.packages[entry.packageName] = nextCacheEntry;
+        if (previous && previous.version === entry.version) {
+            candidatePackages.add(entry.packageName);
             continue;
         }
 
@@ -100,38 +88,38 @@ async function main() {
     for (
         let i = 0;
         i < entriesToRefresh.length;
-        i += DESCRIPTION_FETCH_CONCURRENCY
+        i += RUNIVERSE_FETCH_CONCURRENCY
     ) {
-        const chunk = entriesToRefresh.slice(i, i + DESCRIPTION_FETCH_CONCURRENCY);
+        const chunk = entriesToRefresh.slice(i, i + RUNIVERSE_FETCH_CONCURRENCY);
         const refreshed = await Promise.all(
             chunk.map(async (entry) => {
-                const description = await fetchPackageDescription(entry.packageName);
-                const rustDependent = isRustDependent(description);
-                const nextCacheEntry: PackageCacheEntry = {
+                const metadata = await fetchRUniversePackageInfo(entry.packageName);
+                const rustDependent = isRustDependentFromMetadata(metadata);
+                const cacheEntry: PackageCheckEntry = {
                     version: entry.version,
-                    needsCompilation: true,
-                    isRustDependent: rustDependent,
-                    systemRequirements: description?.systemRequirements ?? "",
                     checkedAt: new Date().toISOString(),
                 };
-                return { entry, nextCacheEntry, rustDependent };
+                return { packageName: entry.packageName, cacheEntry, rustDependent };
             }),
         );
+
         for (const item of refreshed) {
-            packageCache.packages[item.entry.packageName] = item.nextCacheEntry;
             if (item.rustDependent) {
-                rustPackages.add(item.entry.packageName);
+                packageCheck.packages[item.packageName] = item.cacheEntry;
+                candidatePackages.add(item.packageName);
+            } else {
+                delete packageCheck.packages[item.packageName];
             }
         }
     }
 
-    for (const packageName of Object.keys(packageCache.packages)) {
-        if (!packageIndexMap.has(packageName)) {
-            delete packageCache.packages[packageName];
+    for (const packageName of Object.keys(packageCheck.packages)) {
+        if (!compilationPackageNames.has(packageName)) {
+            delete packageCheck.packages[packageName];
         }
     }
 
-    const installLogs = await fetchInstallTxtLinksForPackages(rustPackages);
+    const installLogs = await fetchInstallTxtLinksForPackages(candidatePackages);
 
     const versions: VersionInfo[] = [];
     const observedKeys = new Set<string>();
@@ -199,11 +187,11 @@ async function main() {
     const versionsJsonPath = "./output/versions.json";
     await Deno.mkdir("./output/cache", { recursive: true });
     await Deno.writeTextFile(versionsJsonPath, versionsJson);
-    packageCache.updatedAt = new Date().toISOString();
+    packageCheck.updatedAt = new Date().toISOString();
     installLogCache.updatedAt = new Date().toISOString();
     await Deno.writeTextFile(
-        PACKAGE_CACHE_PATH,
-        JSON.stringify(packageCache, null, 2),
+        PACKAGE_CHECK_PATH,
+        JSON.stringify(packageCheck, null, 2),
     );
     await Deno.writeTextFile(
         INSTALL_LOG_CACHE_PATH,

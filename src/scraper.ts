@@ -2,14 +2,17 @@ import { parse, SemVer } from "./deps.ts";
 import { fetchWithRetry } from "./http.ts";
 import {
     InstallTxtLogSource,
-    PackageDescription,
     PackageIndexEntry,
+    RUniversePackageInfo,
     VersionInfo,
 } from "./types/index.ts";
 
 const PACKAGES_URL = "https://cran.r-project.org/src/contrib/PACKAGES.gz";
 const CHECK_SUMMARY_BY_PACKAGE_URL =
     "https://cran.r-project.org/web/checks/check_summary_by_package.html";
+// r-universe API docs: https://docs.r-universe.dev/browse/api.html
+const RUNIVERSE_CRAN_PACKAGE_API_BASE =
+    "https://cran.r-universe.dev/api/packages";
 
 function splitDcfRecords(dcfText: string): string[] {
     return dcfText.split(/\n\n+/).filter((record) => record.trim().length > 0);
@@ -83,45 +86,6 @@ export async function fetchPackageIndex(): Promise<PackageIndexEntry[]> {
     return entries;
 }
 
-export async function fetchPackageDescription(
-    packageName: string,
-): Promise<PackageDescription | null> {
-    const descriptionUrl =
-        `https://cran.r-project.org/web/packages/${packageName}/DESCRIPTION`;
-    const res = await fetchWithRetry(descriptionUrl);
-    if (!res.ok) {
-        console.error(
-            `Error: ${descriptionUrl} returned ${res.status} ${res.statusText}`,
-        );
-        return null;
-    }
-    const body = await res.text();
-    const records = splitDcfRecords(body);
-    if (records.length === 0) {
-        return null;
-    }
-    const fields = parseDcfRecord(records[0]);
-    const hasRextendrConfig = Object.keys(fields).some((key) =>
-        key.toLowerCase() === "config/rextendr/version"
-    );
-    return {
-        systemRequirements: fields.SystemRequirements ?? "",
-        hasRextendrConfig,
-    };
-}
-
-export function isRustDependent(description: PackageDescription | null): boolean {
-    if (!description) {
-        return false;
-    }
-    if (description.hasRextendrConfig) {
-        return true;
-    }
-    return /\brustc\b|\bcargo\b|\brust\b/i.test(
-        description.systemRequirements,
-    );
-}
-
 export async function fetchInstallTxtLinksForPackages(
     rustPackages: Set<string>,
 ): Promise<InstallTxtLogSource[]> {
@@ -157,6 +121,53 @@ export async function fetchInstallTxtLinksForPackages(
     }
 
     return links;
+}
+
+export async function fetchRUniversePackageInfo(
+    packageName: string,
+): Promise<RUniversePackageInfo | null> {
+    const packageUrl = `${RUNIVERSE_CRAN_PACKAGE_API_BASE}/${packageName}`;
+    const res = await fetchWithRetry(packageUrl);
+    if (!res.ok) {
+        if (res.status !== 404) {
+            console.error(
+                `Error: ${packageUrl} returned ${res.status} ${res.statusText}`,
+            );
+        }
+        return null;
+    }
+
+    const json = await res.json() as Record<string, unknown>;
+    const version = typeof json.Version === "string" ? json.Version : "";
+    const needsCompilation = String(json.NeedsCompilation ?? "").toLowerCase() ===
+        "yes";
+    const systemRequirements = typeof json.SystemRequirements === "string"
+        ? json.SystemRequirements
+        : "";
+    const hasRextendrConfig = typeof json["Config/rextendr/version"] === "string";
+
+    if (!version) {
+        return null;
+    }
+
+    return {
+        version,
+        needsCompilation,
+        systemRequirements,
+        hasRextendrConfig,
+    };
+}
+
+export function isRustDependentFromMetadata(
+    metadata: RUniversePackageInfo | null,
+): boolean {
+    if (!metadata) {
+        return false;
+    }
+    if (metadata.hasRextendrConfig) {
+        return true;
+    }
+    return /\brustc\b|\bcargo\b|\brust\b/i.test(metadata.systemRequirements);
 }
 
 export function extractSemver(ver: string): SemVer {

@@ -5,12 +5,13 @@ Collects the rustc versions reported by Rust-dependent packages' install logs on
 Package discovery is dynamic and based on CRAN metadata.
 
 1. Download the CRAN package index.
-2. Detect Rust-dependent packages from each package DESCRIPTION.
-3. Extract rustc versions from CRAN 00install.txt logs.
+2. Detect Rust-dependent packages using r-universe metadata for changed or new packages.
+3. Find install log URLs from CRAN check summary pages for known Rust-dependent packages.
+4. Extract rustc versions from CRAN 00install.txt logs.
 
 The workflow stores caches under output/cache:
 
-1. output/cache/packages.json: Rust dependency detection cache per package/version.
+1. output/cache/package-check.json: Rust dependency cache (package name -> version, checkedAt).
 2. output/cache/install-logs.json: Observed install log metadata and extracted rustc versions.
 Run the task with the following command (requires Deno):
 

@@ -256,28 +256,6 @@ async function main() {
                     // Re-fetch when cache content is unusable even if validator matches.
                 }
 
-                if (
-                    cached &&
-                    cached.url === log.url &&
-                    cached.validator === "" &&
-                    validator === "" &&
-                    isCacheFreshWithoutValidator(cached.observedAt)
-                ) {
-                    const cachedRustc = parseCachedRustc(cached.rustc);
-                    if (cachedRustc && format(cachedRustc) !== "0.0.0") {
-                        return {
-                            key,
-                            version: {
-                                flavor: cached.flavor,
-                                rustc: cachedRustc,
-                            } as VersionInfo,
-                            cacheEntry: null,
-                            dropCache: false,
-                        };
-                    }
-                    return { key, version: null, cacheEntry: null, dropCache: false };
-                }
-
                 const fetchedInstallTxt = await fetchVersionInfoFromInstallTxt(log);
                 const versionInfo = fetchedInstallTxt.versionInfo;
                 const effectiveValidator = validator !== ""

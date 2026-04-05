@@ -223,7 +223,7 @@ export async function fetchVersionInfoFromInstallTxt(
     source: InstallTxtLogSource,
 ): Promise<VersionInfo | null> {
     console.log(`Extracting Rust version from ${source.url}`);
-    let res;
+    let res: Response;
     try {
         res = await fetchWithRetry(source.url);
     } catch (e) {

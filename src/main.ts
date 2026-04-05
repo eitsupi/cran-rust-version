@@ -176,7 +176,7 @@ async function main() {
                 if (
                     cached &&
                     cached.url === log.url &&
-                    cached.lastModified === "" &&
+                    cached.validator === "" &&
                     isCacheFreshWithoutValidator(cached.observedAt)
                 ) {
                     const cachedRustc = parseCachedRustc(cached.rustc);
@@ -200,7 +200,7 @@ async function main() {
                     cached &&
                     cached.url === log.url &&
                     validator !== "" &&
-                    cached.lastModified === validator
+                    cached.validator === validator
                 ) {
                     const cachedRustc = parseCachedRustc(cached.rustc);
                     if (cachedRustc && format(cachedRustc) !== "0.0.0") {
@@ -247,7 +247,7 @@ async function main() {
                             packageName: log.packageName,
                             flavor: log.flavor,
                             url: log.url,
-                            lastModified: validator,
+                            validator,
                             rustc: format(versionInfo.rustc),
                             observedAt: new Date().toISOString(),
                         },

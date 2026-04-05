@@ -43,7 +43,7 @@ export interface InstallLogCacheEntry {
     packageName: string;
     flavor: string;
     url: string;
-    lastModified: string;
+    validator: string;
     rustc: string;
     observedAt: string;
 }

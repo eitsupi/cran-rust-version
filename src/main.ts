@@ -136,10 +136,8 @@ async function main() {
             if (item.status === "error" || item.status === "not_found") {
                 // Keep the previous decision on transient API failures.
                 if (previous) {
-                    packageCheck.packages[item.packageName] = {
-                        version: item.cacheEntry.version,
-                        checkedAt: new Date().toISOString(),
-                    };
+                    // Preserve the last evaluated version so newer versions are retried.
+                    packageCheck.packages[item.packageName] = previous;
                     candidatePackages.add(item.packageName);
                 }
                 continue;

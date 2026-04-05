@@ -4,3 +4,66 @@ export interface VersionInfo {
     flavor: string;
     rustc: SemVer;
 }
+
+export interface PackageIndexEntry {
+    packageName: string;
+    version: string;
+    needsCompilation: boolean;
+    systemRequirements: string;
+}
+
+export interface InstallTxtLogSource {
+    packageName: string;
+    flavor: string;
+    url: string;
+}
+
+export interface InstallTxtFetchResult {
+    versionInfo: VersionInfo | null;
+    validator: string;
+}
+
+export interface RUniversePackageInfo {
+    version: string;
+    needsCompilation: boolean;
+    systemRequirements: string;
+    hasRextendrConfig: boolean;
+}
+
+export type RUniversePackageFetchResult =
+    | {
+        status: "ok";
+        metadata: RUniversePackageInfo;
+    }
+    | {
+        status: "not_found";
+        metadata: null;
+    }
+    | {
+        status: "error";
+        metadata: null;
+    };
+
+export interface PackageCheckEntry {
+    version: string;
+    checkedAt: string;
+}
+
+export interface PackageCheckFile {
+    updatedAt: string;
+    packages: Record<string, PackageCheckEntry>;
+}
+
+export interface InstallLogCacheEntry {
+    packageName: string;
+    flavor: string;
+    url: string;
+    validator: string;
+    rustc: string;
+    observedAt: string;
+}
+
+export interface InstallLogCacheFile {
+    updatedAt: string;
+    logs: Record<string, InstallLogCacheEntry>;
+}

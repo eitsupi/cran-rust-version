@@ -80,6 +80,11 @@ function mayRequireRustFromSystemRequirements(systemRequirements: string): boole
     return /\brustc\b|\bcargo\b|\brust\b/i.test(systemRequirements);
 }
 
+function toTimestampOrMin(iso: string): number {
+    const time = Date.parse(iso);
+    return Number.isNaN(time) ? Number.MIN_SAFE_INTEGER : time;
+}
+
 async function main() {
     const packageCheck = await loadJsonOrDefault(
         PACKAGE_CHECK_PATH,
@@ -98,7 +103,10 @@ async function main() {
     );
 
     const candidatePackages = new Set<string>();
-    const entriesToRefresh: PackageIndexEntry[] = [];
+    const entriesToRefresh: Array<{
+        entry: PackageIndexEntry;
+        lastCheckedAt: string;
+    }> = [];
     for (const entry of packageIndex) {
         const previous = packageCheck.packages[entry.packageName];
         if (!entry.needsCompilation) {
@@ -117,11 +125,24 @@ async function main() {
             }
         }
 
-        entriesToRefresh.push(entry);
+        entriesToRefresh.push({
+            entry,
+            lastCheckedAt: previous?.checkedAt ?? "",
+        });
     }
 
-    entriesToRefresh.sort((a, b) => a.packageName.localeCompare(b.packageName));
-    const refreshTargets = entriesToRefresh.slice(0, MAX_RUNIVERSE_REFRESH_PER_RUN);
+    // Prefer least-recently checked packages so coverage progresses across runs.
+    entriesToRefresh.sort((a, b) => {
+        const checkedAtDiff = toTimestampOrMin(a.lastCheckedAt) -
+            toTimestampOrMin(b.lastCheckedAt);
+        if (checkedAtDiff !== 0) {
+            return checkedAtDiff;
+        }
+        return a.entry.packageName.localeCompare(b.entry.packageName);
+    });
+    const refreshTargets = entriesToRefresh
+        .slice(0, MAX_RUNIVERSE_REFRESH_PER_RUN)
+        .map((item) => item.entry);
 
     for (
         let i = 0;
@@ -271,6 +292,23 @@ async function main() {
                 }
 
                 if (cached && cached.url === log.url) {
+                    // Avoid reusing stale rustc after a detected validator update.
+                    if (validator !== "" && cached.validator !== validator) {
+                        return {
+                            key,
+                            version: null,
+                            cacheEntry: {
+                                packageName: log.packageName,
+                                flavor: log.flavor,
+                                url: log.url,
+                                validator,
+                                rustc: "0.0.0",
+                                observedAt: new Date().toISOString(),
+                            },
+                            dropCache: false,
+                        };
+                    }
+
                     return {
                         key,
                         version: null,

@@ -16,13 +16,13 @@ const RUNIVERSE_CRAN_PACKAGE_API_BASE =
     "https://cran.r-universe.dev/api/packages";
 
 function splitDcfRecords(dcfText: string): string[] {
-    return dcfText.split(/\n\n+/).filter((record) => record.trim().length > 0);
+    return dcfText.split(/(?:\r?\n){2,}/).filter((record) => record.trim().length > 0);
 }
 
 function parseDcfRecord(record: string): Record<string, string> {
     const fields: Record<string, string> = {};
     let currentKey = "";
-    for (const line of record.split("\n")) {
+    for (const line of record.split(/\r?\n/)) {
         const fieldMatch = line.match(/^([A-Za-z][A-Za-z0-9\/-]*):\s*(.*)$/);
         if (fieldMatch) {
             currentKey = fieldMatch[1];
@@ -79,6 +79,7 @@ export async function fetchPackageIndex(): Promise<PackageIndexEntry[]> {
             packageName,
             version,
             needsCompilation: toBoolYesNo(fields.NeedsCompilation),
+            systemRequirements: fields.SystemRequirements ?? "",
         });
     }
 

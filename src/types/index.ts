@@ -9,6 +9,7 @@ export interface PackageIndexEntry {
     packageName: string;
     version: string;
     needsCompilation: boolean;
+    systemRequirements: string;
 }
 
 export interface InstallTxtLogSource {

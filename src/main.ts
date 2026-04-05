@@ -19,6 +19,7 @@ import { compare, format, parse } from "./deps.ts";
 const PACKAGE_CHECK_PATH = "./output/cache/package-check.json";
 const INSTALL_LOG_CACHE_PATH = "./output/cache/install-logs.json";
 const RUNIVERSE_FETCH_CONCURRENCY = 20;
+const MAX_RUNIVERSE_REFRESH_PER_RUN = 800;
 const INSTALL_LOG_FETCH_CONCURRENCY = 20;
 const NO_VALIDATOR_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -75,6 +76,10 @@ function installLogCacheKey(packageName: string, flavor: string): string {
     return `${packageName}::${flavor}`;
 }
 
+function mayRequireRustFromSystemRequirements(systemRequirements: string): boolean {
+    return /\brustc\b|\bcargo\b|\brust\b/i.test(systemRequirements);
+}
+
 async function main() {
     const packageCheck = await loadJsonOrDefault(
         PACKAGE_CHECK_PATH,
@@ -105,15 +110,25 @@ async function main() {
             continue;
         }
 
+        // On cold start, skip obvious non-Rust packages using cheap metadata.
+        if (!previous && entry.systemRequirements !== "") {
+            if (!mayRequireRustFromSystemRequirements(entry.systemRequirements)) {
+                continue;
+            }
+        }
+
         entriesToRefresh.push(entry);
     }
 
+    entriesToRefresh.sort((a, b) => a.packageName.localeCompare(b.packageName));
+    const refreshTargets = entriesToRefresh.slice(0, MAX_RUNIVERSE_REFRESH_PER_RUN);
+
     for (
         let i = 0;
-        i < entriesToRefresh.length;
+        i < refreshTargets.length;
         i += RUNIVERSE_FETCH_CONCURRENCY
     ) {
-        const chunk = entriesToRefresh.slice(i, i + RUNIVERSE_FETCH_CONCURRENCY);
+        const chunk = refreshTargets.slice(i, i + RUNIVERSE_FETCH_CONCURRENCY);
         const refreshed = await Promise.all(
             chunk.map(async (entry) => {
                 const fetched = await fetchRUniversePackageInfo(entry.packageName);

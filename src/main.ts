@@ -8,6 +8,7 @@ import {
 } from "./scraper.ts";
 import {
     InstallLogCacheFile,
+    PackageIndexEntry,
     PackageCheckEntry,
     PackageCheckFile,
     VersionInfo,
@@ -92,7 +93,7 @@ async function main() {
     );
 
     const candidatePackages = new Set<string>();
-    const entriesToRefresh = [] as typeof packageIndex;
+    const entriesToRefresh: PackageIndexEntry[] = [];
     for (const entry of packageIndex) {
         const previous = packageCheck.packages[entry.packageName];
         if (!entry.needsCompilation) {
@@ -135,6 +136,10 @@ async function main() {
             if (item.status === "error" || item.status === "not_found") {
                 // Keep the previous decision on transient API failures.
                 if (previous) {
+                    packageCheck.packages[item.packageName] = {
+                        version: item.cacheEntry.version,
+                        checkedAt: new Date().toISOString(),
+                    };
                     candidatePackages.add(item.packageName);
                 }
                 continue;

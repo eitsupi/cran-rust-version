@@ -214,7 +214,7 @@ async function main() {
                             dropCache: false,
                         };
                     }
-                    return { key, version: null, cacheEntry: null, dropCache: false };
+                    // Re-fetch when cache content is unusable even if validator matches.
                 }
 
                 if (

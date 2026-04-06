@@ -23,7 +23,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Restore cache files
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: output/cache
           key: output-cache-${{ runner.os }}-${{ github.ref_name }}-v1
@@ -33,7 +33,7 @@ jobs:
           deno task start
       - name: Save cache files
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: output/cache
           key: output-cache-${{ runner.os }}-${{ github.ref_name }}-v1-${{ github.run_id }}

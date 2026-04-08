@@ -147,6 +147,7 @@ async function main() {
 
         if (previous.version !== entry.version) {
             previous.version = entry.version;
+            previous.checkedAt = "";
             previous.rustDependency = "unknown";
         }
 

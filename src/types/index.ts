@@ -47,6 +47,7 @@ export type RUniversePackageFetchResult =
 export interface PackageCheckEntry {
     version: string;
     checkedAt: string;
+    rustDependency: "unknown" | "rust" | "not_rust";
 }
 
 export interface PackageCheckFile {

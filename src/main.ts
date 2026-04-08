@@ -76,13 +76,32 @@ function installLogCacheKey(packageName: string, flavor: string): string {
     return `${packageName}::${flavor}`;
 }
 
-function mayRequireRustFromSystemRequirements(systemRequirements: string): boolean {
-    return /\brustc\b|\bcargo\b|\brust\b/i.test(systemRequirements);
-}
-
 function toTimestampOrMin(iso: string): number {
     const time = Date.parse(iso);
     return Number.isNaN(time) ? Number.MIN_SAFE_INTEGER : time;
+}
+
+function packageRotationSalt(): number {
+    // Daily deterministic rotation to avoid lexical bias when checkedAt ties.
+    const daysSinceEpoch = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+    return daysSinceEpoch;
+}
+
+function hashPackageName(name: string): number {
+    let hash = 2166136261;
+    for (let i = 0; i < name.length; i += 1) {
+        hash ^= name.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+}
+
+function packageRotationScore(name: string, salt: number): number {
+    return (hashPackageName(name) + (salt >>> 0)) >>> 0;
+}
+
+function jsonSizeBytes(value: unknown): number {
+    return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
 async function main() {
@@ -102,41 +121,61 @@ async function main() {
             .map((entry) => entry.packageName),
     );
 
-    const candidatePackages = new Set<string>();
     const entriesToRefresh: Array<{
         entry: PackageIndexEntry;
         lastCheckedAt: string;
     }> = [];
+
     for (const entry of packageIndex) {
-        const previous = packageCheck.packages[entry.packageName];
         if (!entry.needsCompilation) {
             continue;
         }
 
-        if (previous && previous.version === entry.version) {
-            candidatePackages.add(entry.packageName);
+        const previous = packageCheck.packages[entry.packageName];
+        if (!previous) {
+            packageCheck.packages[entry.packageName] = {
+                version: entry.version,
+                checkedAt: "",
+                rustDependency: "unknown",
+            };
+            entriesToRefresh.push({
+                entry,
+                lastCheckedAt: "",
+            });
             continue;
         }
 
-        // On cold start, skip obvious non-Rust packages using cheap metadata.
-        if (!previous && entry.systemRequirements !== "") {
-            if (!mayRequireRustFromSystemRequirements(entry.systemRequirements)) {
-                continue;
-            }
+        if (previous.version !== entry.version) {
+            previous.version = entry.version;
+            previous.checkedAt = "";
+            previous.rustDependency = "unknown";
+        }
+
+        if (
+            previous.version === entry.version &&
+            previous.rustDependency !== "unknown"
+        ) {
+            continue;
         }
 
         entriesToRefresh.push({
             entry,
-            lastCheckedAt: previous?.checkedAt ?? "",
+            lastCheckedAt: previous.checkedAt,
         });
     }
 
     // Prefer least-recently checked packages so coverage progresses across runs.
+    const rotationSalt = packageRotationSalt();
     entriesToRefresh.sort((a, b) => {
         const checkedAtDiff = toTimestampOrMin(a.lastCheckedAt) -
             toTimestampOrMin(b.lastCheckedAt);
         if (checkedAtDiff !== 0) {
             return checkedAtDiff;
+        }
+        const rotationDiff = packageRotationScore(a.entry.packageName, rotationSalt) -
+            packageRotationScore(b.entry.packageName, rotationSalt);
+        if (rotationDiff !== 0) {
+            return rotationDiff;
         }
         return a.entry.packageName.localeCompare(b.entry.packageName);
     });
@@ -157,6 +196,7 @@ async function main() {
                 const cacheEntry: PackageCheckEntry = {
                     version: entry.version,
                     checkedAt: new Date().toISOString(),
+                    rustDependency: rustDependent ? "rust" : "not_rust",
                 };
                 return {
                     packageName: entry.packageName,
@@ -172,19 +212,13 @@ async function main() {
             if (item.status === "error" || item.status === "not_found") {
                 // Keep the previous decision on transient API failures.
                 if (previous) {
-                    // Preserve the last evaluated version so newer versions are retried.
+                    // Preserve the last evaluated state so newer versions are retried.
                     packageCheck.packages[item.packageName] = previous;
-                    candidatePackages.add(item.packageName);
                 }
                 continue;
             }
 
-            if (item.rustDependent) {
-                packageCheck.packages[item.packageName] = item.cacheEntry;
-                candidatePackages.add(item.packageName);
-            } else {
-                delete packageCheck.packages[item.packageName];
-            }
+            packageCheck.packages[item.packageName] = item.cacheEntry;
         }
     }
 
@@ -194,7 +228,20 @@ async function main() {
         }
     }
 
+    const candidatePackages = new Set(
+        Object.entries(packageCheck.packages)
+            .filter(([, value]) => value.rustDependency === "rust")
+            .map(([packageName]) => packageName),
+    );
+
+    const totalCompilationPackages = compilationPackageNames.size;
+    const rustDependentPackages = candidatePackages.size;
+    console.log(
+        `Compilation packages: ${totalCompilationPackages}, rust-dependent: ${rustDependentPackages}, refresh targets this run: ${refreshTargets.length}`,
+    );
+
     const installLogs = await fetchInstallTxtLinksForPackages(candidatePackages);
+    console.log(`Install logs to inspect: ${installLogs.length}`);
 
     const versions: VersionInfo[] = [];
     const observedKeys = new Set<string>();
@@ -358,13 +405,19 @@ async function main() {
     await Deno.writeTextFile(versionsJsonPath, versionsJson);
     packageCheck.updatedAt = new Date().toISOString();
     installLogCache.updatedAt = new Date().toISOString();
+    console.log(
+        `Cache entries: package-check=${Object.keys(packageCheck.packages).length}, install-logs=${Object.keys(installLogCache.logs).length}`,
+    );
+    console.log(
+        `Cache size (bytes): package-check=${jsonSizeBytes(packageCheck)}, install-logs=${jsonSizeBytes(installLogCache)}`,
+    );
     await Deno.writeTextFile(
         PACKAGE_CHECK_PATH,
-        JSON.stringify(packageCheck, null, 2),
+        JSON.stringify(packageCheck),
     );
     await Deno.writeTextFile(
         INSTALL_LOG_CACHE_PATH,
-        JSON.stringify(installLogCache, null, 2),
+        JSON.stringify(installLogCache),
     );
 }
 

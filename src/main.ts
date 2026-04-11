@@ -245,6 +245,7 @@ async function main() {
 
     const versions: VersionInfo[] = [];
     const observedKeys = new Set<string>();
+    const cacheStats = { fresh: 0, validated: 0, fetched: 0 };
     for (
         let i = 0;
         i < installLogs.length;
@@ -272,9 +273,10 @@ async function main() {
                             } as VersionInfo,
                             cacheEntry: null,
                             dropCache: false,
+                            cacheStatus: "fresh" as const,
                         };
                     }
-                    return { key, version: null, cacheEntry: null, dropCache: false };
+                    return { key, version: null, cacheEntry: null, dropCache: false, cacheStatus: "fresh" as const };
                 }
 
                 let validator = "";
@@ -298,6 +300,7 @@ async function main() {
                             } as VersionInfo,
                             cacheEntry: null,
                             dropCache: false,
+                            cacheStatus: "validated" as const,
                         };
                     }
                     // Re-fetch when cache content is unusable even if validator matches.
@@ -324,6 +327,7 @@ async function main() {
                             observedAt: new Date().toISOString(),
                         },
                         dropCache: false,
+                        cacheStatus: "fetched" as const,
                     };
                 }
 
@@ -342,6 +346,7 @@ async function main() {
                                 observedAt: new Date().toISOString(),
                             },
                             dropCache: false,
+                            cacheStatus: "fetched" as const,
                         };
                     }
 
@@ -350,6 +355,7 @@ async function main() {
                         version: null,
                         cacheEntry: null,
                         dropCache: false,
+                        cacheStatus: "fetched" as const,
                     };
                 }
 
@@ -358,12 +364,14 @@ async function main() {
                     version: null,
                     cacheEntry: null,
                     dropCache: true,
+                    cacheStatus: "fetched" as const,
                 };
             }),
         );
 
         for (const result of results) {
             observedKeys.add(result.key);
+            cacheStats[result.cacheStatus]++;
             if (result.version) {
                 versions.push(result.version);
             }
@@ -374,6 +382,9 @@ async function main() {
             }
         }
     }
+    console.log(
+        `Install log cache: ${cacheStats.fresh} fresh, ${cacheStats.validated} validated, ${cacheStats.fetched} fetched`,
+    );
 
     for (const key of Object.keys(installLogCache.logs)) {
         if (!observedKeys.has(key)) {

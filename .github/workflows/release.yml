@@ -29,7 +29,7 @@ jobs:
           ~/.duckdb/cli/latest/duckdb -markdown output/versions.json -c 'from file' >"${{ runner.temp }}/body.md"
       - name: Create release
         id: release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.prep.outputs.tag }}
           body_path: ${{ runner.temp }}/body.md

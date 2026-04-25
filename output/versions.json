@@ -1,13 +1,5 @@
 [
     {
-        "flavor": "r-oldrel-macos-arm64",
-        "rustc": "1.91.1"
-    },
-    {
-        "flavor": "r-devel-windows-x86_64",
-        "rustc": "1.92.0"
-    },
-    {
         "flavor": "r-oldrel-windows-x86_64",
         "rustc": "1.92.0"
     },
@@ -16,7 +8,7 @@
         "rustc": "1.92.0"
     },
     {
-        "flavor": "r-devel-macos-arm64",
+        "flavor": "r-oldrel-macos-arm64",
         "rustc": "1.93.0"
     },
     {
@@ -36,10 +28,6 @@
         "rustc": "1.93.1"
     },
     {
-        "flavor": "r-devel-linux-x86_64-debian-gcc",
-        "rustc": "1.93.1"
-    },
-    {
         "flavor": "r-devel-linux-x86_64-fedora-clang",
         "rustc": "1.93.1"
     },
@@ -54,5 +42,9 @@
     {
         "flavor": "r-release-linux-x86_64",
         "rustc": "1.93.1"
+    },
+    {
+        "flavor": "r-devel-linux-x86_64-debian-gcc",
+        "rustc": "1.94.1"
     }
 ]

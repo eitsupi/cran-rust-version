@@ -1,5 +1,9 @@
 [
     {
+        "flavor": "r-devel-windows-x86_64",
+        "rustc": "1.92.0"
+    },
+    {
         "flavor": "r-oldrel-windows-x86_64",
         "rustc": "1.92.0"
     },

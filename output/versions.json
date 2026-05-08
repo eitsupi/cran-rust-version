@@ -24,6 +24,10 @@
         "rustc": "1.93.0"
     },
     {
+        "flavor": "r-release-macos-x86_64",
+        "rustc": "1.93.0"
+    },
+    {
         "flavor": "r-devel-linux-x86_64-fedora-clang",
         "rustc": "1.93.1"
     },

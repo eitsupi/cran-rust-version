@@ -14,7 +14,7 @@ import {
     VersionInfo,
 } from "./types/index.ts";
 import { latestVersions } from "./utils.ts";
-import { compare, format, parse } from "./deps.ts";
+import { compare, format, greaterThan, parse, type SemVer } from "./deps.ts";
 
 const PACKAGE_CHECK_PATH = "./output/cache/package-check.json";
 const INSTALL_LOG_CACHE_PATH = "./output/cache/install-logs.json";
@@ -245,6 +245,7 @@ async function main() {
 
     const versions: VersionInfo[] = [];
     const observedKeys = new Set<string>();
+    const fetchFailuresByFlavor = new Set<string>();
     const cacheStats = { fresh: 0, validated: 0, fetched: 0 };
     for (
         let i = 0;
@@ -267,6 +268,7 @@ async function main() {
                     if (cachedRustc && format(cachedRustc) !== "0.0.0") {
                         return {
                             key,
+                            flavor: log.flavor,
                             version: {
                                 flavor: cached.flavor,
                                 rustc: cachedRustc,
@@ -274,9 +276,18 @@ async function main() {
                             cacheEntry: null,
                             dropCache: false,
                             cacheStatus: "fresh" as const,
+                            fetchFailed: false,
                         };
                     }
-                    return { key, version: null, cacheEntry: null, dropCache: false, cacheStatus: "fresh" as const };
+                    return {
+                        key,
+                        flavor: log.flavor,
+                        version: null,
+                        cacheEntry: null,
+                        dropCache: false,
+                        cacheStatus: "fresh" as const,
+                        fetchFailed: false,
+                    };
                 }
 
                 let validator = "";
@@ -294,6 +305,7 @@ async function main() {
                     if (cachedRustc && format(cachedRustc) !== "0.0.0") {
                         return {
                             key,
+                            flavor: log.flavor,
                             version: {
                                 flavor: cached.flavor,
                                 rustc: cachedRustc,
@@ -301,6 +313,7 @@ async function main() {
                             cacheEntry: null,
                             dropCache: false,
                             cacheStatus: "validated" as const,
+                            fetchFailed: false,
                         };
                     }
                     // Re-fetch when cache content is unusable even if validator matches.
@@ -317,6 +330,7 @@ async function main() {
                 if (versionInfo && format(versionInfo.rustc) !== "0.0.0") {
                     return {
                         key,
+                        flavor: log.flavor,
                         version: versionInfo,
                         cacheEntry: {
                             packageName: log.packageName,
@@ -328,14 +342,17 @@ async function main() {
                         },
                         dropCache: false,
                         cacheStatus: "fetched" as const,
+                        fetchFailed: false,
                     };
                 }
 
+                const fetchFailed = versionInfo === null;
                 if (cached && cached.url === log.url) {
                     // Avoid reusing stale rustc after a detected validator update.
                     if (validator !== "" && cached.validator !== validator) {
                         return {
                             key,
+                            flavor: log.flavor,
                             version: null,
                             cacheEntry: {
                                 packageName: log.packageName,
@@ -347,24 +364,29 @@ async function main() {
                             },
                             dropCache: false,
                             cacheStatus: "fetched" as const,
+                            fetchFailed,
                         };
                     }
 
                     return {
                         key,
+                        flavor: log.flavor,
                         version: null,
                         cacheEntry: null,
                         dropCache: false,
                         cacheStatus: "fetched" as const,
+                        fetchFailed,
                     };
                 }
 
                 return {
                     key,
+                    flavor: log.flavor,
                     version: null,
                     cacheEntry: null,
                     dropCache: true,
                     cacheStatus: "fetched" as const,
+                    fetchFailed,
                 };
             }),
         );
@@ -379,6 +401,9 @@ async function main() {
                 installLogCache.logs[result.key] = result.cacheEntry;
             } else if (result.dropCache) {
                 delete installLogCache.logs[result.key];
+            }
+            if (result.cacheStatus === "fetched" && result.fetchFailed) {
+                fetchFailuresByFlavor.add(result.flavor);
             }
         }
     }
@@ -400,8 +425,46 @@ async function main() {
             return compare(a.rustc, b.rustc);
         });
 
+    const versionsJsonPath = "./output/versions.json";
+    const existingVersionFloor = new Map<string, SemVer>();
+    try {
+        const existingRaw = await Deno.readTextFile(versionsJsonPath);
+        try {
+            const existingData = JSON.parse(existingRaw) as Array<{ flavor: string; rustc: string }>;
+            for (const entry of existingData) {
+                try {
+                    existingVersionFloor.set(entry.flavor, parse(entry.rustc));
+                } catch {
+                    // skip unparseable entries
+                }
+            }
+        } catch {
+            console.warn(`Failed to parse existing ${versionsJsonPath}; downgrade protection disabled for this run.`);
+        }
+    } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) {
+            console.warn(`Failed to read existing ${versionsJsonPath}; downgrade protection disabled for this run.`);
+        }
+    }
+
+    const adjustedVersions = uniqueVersions.map((version) => {
+        const floor = existingVersionFloor.get(version.flavor);
+        if (floor && greaterThan(floor, version.rustc) && fetchFailuresByFlavor.has(version.flavor)) {
+            console.warn(
+                `Version downgrade prevented for ${version.flavor}: computed ${format(version.rustc)} < existing ${format(floor)} (fetch errors occurred this run)`
+            );
+            return { ...version, rustc: floor };
+        }
+        return version;
+    }).sort((a, b) => {
+        if (compare(a.rustc, b.rustc) === 0) {
+            return a.flavor.localeCompare(b.flavor);
+        }
+        return compare(a.rustc, b.rustc);
+    });
+
     const versionsJson = JSON.stringify(
-        uniqueVersions.map((version) => {
+        adjustedVersions.map((version) => {
             return {
                 flavor: version.flavor,
                 rustc: format(version.rustc),
@@ -410,7 +473,6 @@ async function main() {
         null,
         4,
     );
-    const versionsJsonPath = "./output/versions.json";
     await Deno.mkdir("./output", { recursive: true });
     await Deno.mkdir("./output/cache", { recursive: true });
     await Deno.writeTextFile(versionsJsonPath, versionsJson);

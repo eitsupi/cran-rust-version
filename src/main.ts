@@ -279,7 +279,15 @@ async function main() {
                             fetchFailed: false,
                         };
                     }
-                    return { key, flavor: log.flavor, version: null, cacheEntry: null, dropCache: false, cacheStatus: "fresh" as const, fetchFailed: false };
+                    return {
+                        key,
+                        flavor: log.flavor,
+                        version: null,
+                        cacheEntry: null,
+                        dropCache: false,
+                        cacheStatus: "fresh" as const,
+                        fetchFailed: false,
+                    };
                 }
 
                 let validator = "";
@@ -421,16 +429,22 @@ async function main() {
     const existingVersionFloor = new Map<string, SemVer>();
     try {
         const existingRaw = await Deno.readTextFile(versionsJsonPath);
-        const existingData = JSON.parse(existingRaw) as Array<{ flavor: string; rustc: string }>;
-        for (const entry of existingData) {
-            try {
-                existingVersionFloor.set(entry.flavor, parse(entry.rustc));
-            } catch {
-                // skip unparseable entries
+        try {
+            const existingData = JSON.parse(existingRaw) as Array<{ flavor: string; rustc: string }>;
+            for (const entry of existingData) {
+                try {
+                    existingVersionFloor.set(entry.flavor, parse(entry.rustc));
+                } catch {
+                    // skip unparseable entries
+                }
             }
+        } catch {
+            console.warn(`Failed to parse existing ${versionsJsonPath}; downgrade protection disabled for this run.`);
         }
-    } catch {
-        // no existing file or parse error, start fresh
+    } catch (e) {
+        if (!(e instanceof Deno.errors.NotFound)) {
+            console.warn(`Failed to read existing ${versionsJsonPath}; downgrade protection disabled for this run.`);
+        }
     }
 
     const adjustedVersions = uniqueVersions.map((version) => {
@@ -442,6 +456,11 @@ async function main() {
             return { ...version, rustc: floor };
         }
         return version;
+    }).sort((a, b) => {
+        if (compare(a.rustc, b.rustc) === 0) {
+            return a.flavor.localeCompare(b.flavor);
+        }
+        return compare(a.rustc, b.rustc);
     });
 
     const versionsJson = JSON.stringify(

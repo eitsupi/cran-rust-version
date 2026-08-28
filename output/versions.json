@@ -1,5 +1,9 @@
 [
     {
+        "flavor": "r-oldrel-macos-arm64",
+        "rustc": "1.91.1"
+    },
+    {
         "flavor": "r-devel-windows-x86_64",
         "rustc": "1.92.0"
     },
@@ -10,10 +14,6 @@
     {
         "flavor": "r-release-windows-x86_64",
         "rustc": "1.92.0"
-    },
-    {
-        "flavor": "r-oldrel-macos-arm64",
-        "rustc": "1.93.0"
     },
     {
         "flavor": "r-oldrel-macos-x86_64",

@@ -25,7 +25,7 @@ jobs:
           echo "tag=$(date -u +%Y-%m-%d)" >>"$GITHUB_OUTPUT"
 
           # Install DuckDB CLI
-          curl https://install.duckdb.org | sh
+          curl https://install.duckdb.org | bash
           ~/.duckdb/cli/latest/duckdb -markdown output/versions.json -c 'from file' >"${{ runner.temp }}/body.md"
       - name: Create release
         id: release

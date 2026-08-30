@@ -45,10 +45,10 @@
     },
     {
         "flavor": "r-devel-linux-x86_64-fedora-clang",
-        "rustc": "1.97.1"
+        "rustc": "1.98.0"
     },
     {
         "flavor": "r-devel-linux-x86_64-fedora-gcc",
-        "rustc": "1.97.1"
+        "rustc": "1.98.0"
     }
 ]
